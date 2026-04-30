@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+import inspect
+from tkinter import BOTH, END, LEFT, Button, Frame, Label, StringVar, Text, Tk, Toplevel, filedialog, messagebox
+from tkinter import ttk
 from tkinter import BOTH, END, LEFT, Button, Frame, Label, StringVar, Text, Tk, Toplevel, filedialog, messagebox
 from tkinter import ttk
 from tkinter import BOTH, END, LEFT, Button, Frame, Label, Text, Tk, filedialog, messagebox
@@ -192,6 +195,34 @@ class AppUI:
         else:
             self.start_listening()
 
+    def _build_recognizer_compatible(self) -> SpeechRecognizer:
+        """Construye SpeechRecognizer compatible con distintas firmas de __init__."""
+        signature = inspect.signature(SpeechRecognizer.__init__)
+        params = signature.parameters
+
+        kwargs = {}
+        if "model_path" in params:
+            kwargs["model_path"] = self.model_path
+
+        # Compatibilidad entre versiones/nombres de parámetro.
+        if "input_device_index" in params:
+            kwargs["input_device_index"] = self.selected_input_device_index
+        elif "input_device_idx" in params:
+            kwargs["input_device_idx"] = self.selected_input_device_index
+        elif "device_index" in params:
+            kwargs["device_index"] = self.selected_input_device_index
+
+        # Si no existe model_path como keyword, usar posición.
+        if not kwargs.get("model_path"):
+            recognizer = SpeechRecognizer(self.model_path)
+        else:
+            recognizer = SpeechRecognizer(**kwargs)
+
+        # Fallback por atributo para implementaciones legacy.
+        if hasattr(recognizer, "input_device_index"):
+            setattr(recognizer, "input_device_index", self.selected_input_device_index)
+        return recognizer
+
     def start_listening(self) -> None:
         model_dir = Path(self.model_path)
         if not model_dir.exists():
@@ -206,6 +237,7 @@ class AppUI:
             return
 
         try:
+            self.recognizer = self._build_recognizer_compatible()
             # Compatibilidad: si existe una versión antigua de SpeechRecognizer en el entorno,
             # reintenta sin el argumento de micrófono para evitar TypeError por firma distinta.
             try:
