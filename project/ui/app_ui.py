@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from tkinter import BOTH, END, LEFT, Button, Frame, Label, StringVar, Text, Tk, Toplevel, filedialog, messagebox
 from tkinter import ttk
+from tkinter import BOTH, END, LEFT, Button, Frame, Label, Text, Tk, filedialog, messagebox
 
 from models.order import Order
 from models.product_catalog import ProductCatalog
@@ -25,6 +26,14 @@ class AppUI:
         self.root.title("Captador de voz FRUNA")
         self.root.geometry("980x680")
         self.root.configure(bg=BG)
+
+class AppUI:
+    """Controlador principal de interfaz y flujo de negocio."""
+
+    def __init__(self) -> None:
+        self.root = Tk()
+        self.root.title("Captador de voz FRUNA")
+        self.root.geometry("900x650")
 
         self.catalog = ProductCatalog.default()
         self.parser = OrderParser(self.catalog)
@@ -80,6 +89,32 @@ class AppUI:
         settings.configure(bg=BG)
 
         Label(settings, text="Selecciona el micrófono para captura de voz:", bg=BG, fg=FG).pack(anchor="w", padx=12, pady=(12, 4))
+    def _build_widgets(self) -> None:
+        top = Frame(self.root)
+        top.pack(fill="x", padx=10, pady=10)
+
+        self.listen_btn = Button(top, text="Iniciar escucha", command=self.toggle_listening)
+        self.listen_btn.pack(side=LEFT, padx=5)
+        Button(top, text="Ajustes", command=self.open_settings_window).pack(side=LEFT, padx=5)
+        Button(top, text="Cerrar boleta pendiente", command=self.commit_pending_receipt).pack(side=LEFT, padx=5)
+        Button(top, text="Guardar última boleta", command=self.save_last_receipt).pack(side=LEFT, padx=5)
+        Button(top, text="Guardar historial", command=self.save_receipt_history).pack(side=LEFT, padx=5)
+
+        Label(self.root, text="Texto reconocido en vivo:").pack(anchor="w", padx=10)
+        self.live_text = Text(self.root, height=6)
+        self.live_text.pack(fill="x", padx=10, pady=5)
+
+        Label(self.root, text="Boletas generadas:").pack(anchor="w", padx=10)
+        self.receipt_text = Text(self.root)
+        self.receipt_text.pack(fill=BOTH, expand=True, padx=10, pady=5)
+
+    def open_settings_window(self) -> None:
+        """Ventana de ajustes para seleccionar micrófono de entrada."""
+        settings = Toplevel(self.root)
+        settings.title("Ajustes")
+        settings.geometry("560x220")
+
+        Label(settings, text="Selecciona el micrófono para captura de voz:").pack(anchor="w", padx=12, pady=(12, 4))
 
         try:
             devices = SpeechRecognizer.list_input_devices()
@@ -90,6 +125,7 @@ class AppUI:
 
         if not devices:
             Label(settings, text="No se detectaron micrófonos de entrada.", bg=BG, fg=FG).pack(anchor="w", padx=12, pady=10)
+            Label(settings, text="No se detectaron micrófonos de entrada.").pack(anchor="w", padx=12, pady=10)
             return
 
         device_map = {
@@ -102,6 +138,11 @@ class AppUI:
         combo["values"] = list(device_map.keys())
         combo.pack(fill="x", padx=12, pady=4)
 
+        combo = ttk.Combobox(settings, textvariable=combo_value, state="readonly", width=75)
+        combo["values"] = list(device_map.keys())
+        combo.pack(fill="x", padx=12, pady=4)
+
+        # Selección por defecto: el primero o el actualmente seleccionado
         default_key = combo["values"][0]
         if self.selected_input_device_index is not None:
             for key, index in device_map.items():
@@ -111,6 +152,7 @@ class AppUI:
         combo_value.set(default_key)
 
         status_label = Label(settings, text="", bg=BG, fg=FG)
+        status_label = Label(settings, text="")
         status_label.pack(anchor="w", padx=12, pady=(8, 6))
 
         def save_settings() -> None:
@@ -142,6 +184,7 @@ class AppUI:
 
         self._styled_button(settings, "Guardar micrófono", save_settings).pack(anchor="w", padx=12, pady=6)
         self._styled_button(settings, "Probar micrófono", test_microphone).pack(anchor="w", padx=12, pady=4)
+        Button(settings, text="Guardar micrófono", command=save_settings).pack(anchor="w", padx=12, pady=6)
 
     def toggle_listening(self) -> None:
         if self.is_listening:
@@ -163,6 +206,8 @@ class AppUI:
             return
 
         try:
+            # Compatibilidad: si existe una versión antigua de SpeechRecognizer en el entorno,
+            # reintenta sin el argumento de micrófono para evitar TypeError por firma distinta.
             try:
                 self.recognizer = SpeechRecognizer(
                     model_path=self.model_path,
@@ -175,6 +220,11 @@ class AppUI:
                 if hasattr(self.recognizer, "input_device_index"):
                     setattr(self.recognizer, "input_device_index", self.selected_input_device_index)
 
+            self.recognizer = SpeechRecognizer(
+                model_path=self.model_path,
+                input_device_index=self.selected_input_device_index,
+            )
+            self.recognizer = SpeechRecognizer(model_path=self.model_path)
             self.recognizer.start_listening(on_partial=self.on_partial_text, on_final=self.on_final_text)
             self.is_listening = True
             self.listen_btn.config(text="Detener escucha")
@@ -210,11 +260,13 @@ class AppUI:
         self.receipt_history.append(receipt)
 
     def commit_pending_receipt(self) -> None:
+        """Cierra manualmente la boleta en curso aunque no se haya dicho 'aparte'."""
         parsed_orders = self.parser.parse_orders(self.live_buffer)
         if not parsed_orders:
             messagebox.showwarning("Sin ítems", "No hay una boleta pendiente válida para cerrar.")
             return
 
+        # Toma sólo la última boleta parseable del buffer actual.
         self._create_and_show_receipt(parsed_orders[-1])
         self.live_buffer = ""
         self._set_live_text("")
@@ -248,6 +300,7 @@ class AppUI:
             messagebox.showerror("Error al guardar", str(exc))
 
     def save_receipt_history(self) -> None:
+        """Guarda todas las boletas de la sesión en un solo TXT."""
         if not self.receipt_history:
             messagebox.showwarning("Sin historial", "No hay boletas en el historial para guardar.")
             return
