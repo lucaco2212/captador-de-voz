@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+from tkinter import BOTH, END, LEFT, Button, Frame, Label, StringVar, Text, Tk, Toplevel, filedialog, messagebox
+from tkinter import ttk
 import inspect
 from tkinter import BOTH, END, LEFT, Button, Frame, Label, StringVar, Text, Tk, Toplevel, filedialog, messagebox
 from tkinter import ttk
@@ -196,6 +198,18 @@ class AppUI:
             self.start_listening()
 
     def _build_recognizer_compatible(self) -> SpeechRecognizer:
+        """Construye SpeechRecognizer sin depender de keywords en __init__."""
+        # Instancia por posición para evitar errores por firmas legacy que no aceptan kwargs.
+        recognizer = SpeechRecognizer(self.model_path)
+
+        # Aplicar índice de dispositivo por atributo en distintas implementaciones posibles.
+        if hasattr(recognizer, "input_device_index"):
+            setattr(recognizer, "input_device_index", self.selected_input_device_index)
+        elif hasattr(recognizer, "input_device_idx"):
+            setattr(recognizer, "input_device_idx", self.selected_input_device_index)
+        elif hasattr(recognizer, "device_index"):
+            setattr(recognizer, "device_index", self.selected_input_device_index)
+
         """Construye SpeechRecognizer compatible con distintas firmas de __init__."""
         signature = inspect.signature(SpeechRecognizer.__init__)
         params = signature.parameters
