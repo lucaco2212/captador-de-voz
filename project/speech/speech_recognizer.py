@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import audioop
 import json
 import queue
 import threading
@@ -51,6 +52,35 @@ class SpeechRecognizer:
             audio.terminate()
 
         return devices
+
+    @staticmethod
+    def test_input_device(input_device_index: Optional[int], sample_rate: int = 16000, duration_seconds: float = 2.0) -> tuple[bool, int]:
+        """Prueba rápidamente un micrófono y retorna (ok, nivel_promedio_rms)."""
+        audio = pyaudio.PyAudio()
+        stream = None
+        try:
+            stream = audio.open(
+                format=pyaudio.paInt16,
+                channels=1,
+                rate=sample_rate,
+                input=True,
+                input_device_index=input_device_index,
+                frames_per_buffer=1024,
+            )
+
+            chunks = max(1, int((sample_rate * duration_seconds) / 1024))
+            total_rms = 0
+            for _ in range(chunks):
+                data = stream.read(1024, exception_on_overflow=False)
+                total_rms += int(audioop.rms(data, 2))
+
+            avg_rms = int(total_rms / chunks)
+            return avg_rms > 50, avg_rms
+        finally:
+            if stream is not None:
+                stream.stop_stream()
+                stream.close()
+            audio.terminate()
 
     def _audio_callback(self, in_data, frame_count, time_info, status):
         self._audio_queue.put(in_data)

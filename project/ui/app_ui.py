@@ -13,6 +13,19 @@ from models.receipt_generator import ReceiptGenerator
 from parser.order_parser import OrderParser
 from speech.speech_recognizer import SpeechRecognizer
 
+BG = "#101010"
+FG = "#F5F5F5"
+BTN_BG = "#232323"
+BTN_FG = "#FFFFFF"
+ACCENT = "#3A86FF"
+
+
+class AppUI:
+    def __init__(self) -> None:
+        self.root = Tk()
+        self.root.title("Captador de voz FRUNA")
+        self.root.geometry("980x680")
+        self.root.configure(bg=BG)
 
 class AppUI:
     """Controlador principal de interfaz y flujo de negocio."""
@@ -36,6 +49,46 @@ class AppUI:
 
         self._build_widgets()
 
+    def _styled_button(self, parent, text: str, command):
+        return Button(
+            parent,
+            text=text,
+            command=command,
+            bg=BTN_BG,
+            fg=BTN_FG,
+            activebackground=ACCENT,
+            activeforeground=BTN_FG,
+            relief="flat",
+            padx=8,
+            pady=6,
+        )
+
+    def _build_widgets(self) -> None:
+        top = Frame(self.root, bg=BG)
+        top.pack(fill="x", padx=10, pady=10)
+
+        self.listen_btn = self._styled_button(top, "Iniciar escucha", self.toggle_listening)
+        self.listen_btn.pack(side=LEFT, padx=5)
+        self._styled_button(top, "Ajustes", self.open_settings_window).pack(side=LEFT, padx=5)
+        self._styled_button(top, "Cerrar boleta pendiente", self.commit_pending_receipt).pack(side=LEFT, padx=5)
+        self._styled_button(top, "Guardar última boleta", self.save_last_receipt).pack(side=LEFT, padx=5)
+        self._styled_button(top, "Guardar historial", self.save_receipt_history).pack(side=LEFT, padx=5)
+
+        Label(self.root, text="Texto reconocido en vivo:", bg=BG, fg=FG).pack(anchor="w", padx=10)
+        self.live_text = Text(self.root, height=6, bg="#1A1A1A", fg=FG, insertbackground=FG)
+        self.live_text.pack(fill="x", padx=10, pady=5)
+
+        Label(self.root, text="Boletas generadas:", bg=BG, fg=FG).pack(anchor="w", padx=10)
+        self.receipt_text = Text(self.root, bg="#151515", fg=FG, insertbackground=FG)
+        self.receipt_text.pack(fill=BOTH, expand=True, padx=10, pady=5)
+
+    def open_settings_window(self) -> None:
+        settings = Toplevel(self.root)
+        settings.title("Ajustes")
+        settings.geometry("620x290")
+        settings.configure(bg=BG)
+
+        Label(settings, text="Selecciona el micrófono para captura de voz:", bg=BG, fg=FG).pack(anchor="w", padx=12, pady=(12, 4))
     def _build_widgets(self) -> None:
         top = Frame(self.root)
         top.pack(fill="x", padx=10, pady=10)
@@ -71,6 +124,7 @@ class AppUI:
             return
 
         if not devices:
+            Label(settings, text="No se detectaron micrófonos de entrada.", bg=BG, fg=FG).pack(anchor="w", padx=12, pady=10)
             Label(settings, text="No se detectaron micrófonos de entrada.").pack(anchor="w", padx=12, pady=10)
             return
 
@@ -80,6 +134,10 @@ class AppUI:
         }
 
         combo_value = StringVar()
+        combo = ttk.Combobox(settings, textvariable=combo_value, state="readonly", width=85)
+        combo["values"] = list(device_map.keys())
+        combo.pack(fill="x", padx=12, pady=4)
+
         combo = ttk.Combobox(settings, textvariable=combo_value, state="readonly", width=75)
         combo["values"] = list(device_map.keys())
         combo.pack(fill="x", padx=12, pady=4)
@@ -93,6 +151,7 @@ class AppUI:
                     break
         combo_value.set(default_key)
 
+        status_label = Label(settings, text="", bg=BG, fg=FG)
         status_label = Label(settings, text="")
         status_label.pack(anchor="w", padx=12, pady=(8, 6))
 
@@ -106,6 +165,25 @@ class AppUI:
             status_label.config(text=f"Micrófono seleccionado: {selected}")
             messagebox.showinfo("Ajustes guardados", "Micrófono guardado correctamente.")
 
+        def test_microphone() -> None:
+            selected = combo_value.get().strip()
+            if selected not in device_map:
+                messagebox.showwarning("Selección inválida", "Selecciona un micrófono antes de probar.")
+                return
+
+            status_label.config(text="Probando micrófono 2 segundos... habla ahora.")
+            settings.update_idletasks()
+            try:
+                ok, rms = SpeechRecognizer.test_input_device(input_device_index=device_map[selected])
+                if ok:
+                    status_label.config(text=f"✅ Micrófono operativo. Nivel detectado (RMS): {rms}")
+                else:
+                    status_label.config(text=f"⚠️ Señal muy baja. Nivel detectado (RMS): {rms}. Acércate al micrófono.")
+            except Exception as exc:
+                status_label.config(text=f"❌ Error al probar micrófono: {exc}")
+
+        self._styled_button(settings, "Guardar micrófono", save_settings).pack(anchor="w", padx=12, pady=6)
+        self._styled_button(settings, "Probar micrófono", test_microphone).pack(anchor="w", padx=12, pady=4)
         Button(settings, text="Guardar micrófono", command=save_settings).pack(anchor="w", padx=12, pady=6)
 
     def toggle_listening(self) -> None:
