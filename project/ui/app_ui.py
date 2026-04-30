@@ -128,6 +128,20 @@ class AppUI:
             return
 
         try:
+            # Compatibilidad: si existe una versión antigua de SpeechRecognizer en el entorno,
+            # reintenta sin el argumento de micrófono para evitar TypeError por firma distinta.
+            try:
+                self.recognizer = SpeechRecognizer(
+                    model_path=self.model_path,
+                    input_device_index=self.selected_input_device_index,
+                )
+            except TypeError as exc:
+                if "input_device_index" not in str(exc):
+                    raise
+                self.recognizer = SpeechRecognizer(model_path=self.model_path)
+                if hasattr(self.recognizer, "input_device_index"):
+                    setattr(self.recognizer, "input_device_index", self.selected_input_device_index)
+
             self.recognizer = SpeechRecognizer(
                 model_path=self.model_path,
                 input_device_index=self.selected_input_device_index,
