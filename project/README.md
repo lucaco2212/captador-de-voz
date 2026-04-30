@@ -37,6 +37,9 @@ cd project
 ```
 
 2. Crear y activar entorno virtual:
+- Dependencias: `vosk`, `pyaudio`, `pytest` (para pruebas)
+
+## Instalación
 
 ```bash
 python -m venv .venv
@@ -88,6 +91,10 @@ test -d project/vosk-model-small-es-0.42 && echo "OK: modelo encontrado" || echo
 ```
 
 Si sale `ERROR`, la UI mostrará `Modelo no encontrado` al iniciar escucha.
+pip install vosk pyaudio
+```
+
+Descarga un modelo español de Vosk (recomendado `vosk-model-small-es-0.42`) y ubícalo en `project/vosk-model-small-es-0.42`.
 
 ## Ejecución
 
@@ -103,6 +110,14 @@ python main.py
 3. Cada vez que digas **aparte**, se cierra una boleta y comienza la siguiente.
 4. (Opcional) En **Ajustes**, selecciona el micrófono que quieres usar.
 5. Usa **Guardar última boleta** o **Guardar historial** para exportar TXT.
+## Mejoras implementadas
+
+- Parser mejorado: admite números en dígitos y palabras (`uno`, `dos`, `tres`, etc.).
+- Manejo incremental de boletas: cada `aparte` cierra boleta y conserva texto pendiente sin reprocesar todo.
+- Botón de escucha con modo iniciar/detener.
+- Cierre manual de boleta pendiente (sin decir "aparte").
+- Guardado de historial completo de boletas de la sesión.
+
 
 ## Pruebas
 
