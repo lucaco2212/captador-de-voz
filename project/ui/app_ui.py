@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from tkinter import BOTH, END, LEFT, Button, Frame, Label, StringVar, Text, Tk, Toplevel, filedialog, messagebox
 from tkinter import ttk
+from tkinter import BOTH, END, LEFT, Button, Frame, Label, Text, Tk, filedialog, messagebox
 
 from models.order import Order
 from models.product_catalog import ProductCatalog
@@ -141,6 +142,11 @@ class AppUI:
                 if hasattr(self.recognizer, "input_device_index"):
                     setattr(self.recognizer, "input_device_index", self.selected_input_device_index)
 
+            self.recognizer = SpeechRecognizer(
+                model_path=self.model_path,
+                input_device_index=self.selected_input_device_index,
+            )
+            self.recognizer = SpeechRecognizer(model_path=self.model_path)
             self.recognizer.start_listening(on_partial=self.on_partial_text, on_final=self.on_final_text)
             self.is_listening = True
             self.listen_btn.config(text="Detener escucha")
@@ -182,6 +188,7 @@ class AppUI:
             messagebox.showwarning("Sin ítems", "No hay una boleta pendiente válida para cerrar.")
             return
 
+        # Toma sólo la última boleta parseable del buffer actual.
         self._create_and_show_receipt(parsed_orders[-1])
         self.live_buffer = ""
         self._set_live_text("")

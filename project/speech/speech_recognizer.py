@@ -19,6 +19,10 @@ class SpeechRecognizer:
         self.recognizer = KaldiRecognizer(self.model, sample_rate)
         self.sample_rate = sample_rate
         self.input_device_index = input_device_index
+    def __init__(self, model_path: str, sample_rate: int = 16000) -> None:
+        self.model = Model(model_path)
+        self.recognizer = KaldiRecognizer(self.model, sample_rate)
+        self.sample_rate = sample_rate
 
         self._audio_interface: Optional[pyaudio.PyAudio] = None
         self._stream: Optional[pyaudio.Stream] = None
