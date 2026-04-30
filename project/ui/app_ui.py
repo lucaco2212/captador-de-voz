@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+from tkinter import BOTH, END, LEFT, Button, Frame, Label, StringVar, Text, Tk, Toplevel, filedialog, messagebox
+from tkinter import ttk
 from tkinter import BOTH, END, LEFT, Button, Frame, Label, Text, Tk, filedialog, messagebox
 
 from models.order import Order
@@ -25,6 +27,7 @@ class AppUI:
 
         self.recognizer: SpeechRecognizer | None = None
         self.model_path = "vosk-model-small-es-0.42"
+        self.selected_input_device_index: int | None = None
 
         self.live_buffer = ""
         self.last_receipt_text = ""
@@ -39,6 +42,7 @@ class AppUI:
 
         self.listen_btn = Button(top, text="Iniciar escucha", command=self.toggle_listening)
         self.listen_btn.pack(side=LEFT, padx=5)
+        Button(top, text="Ajustes", command=self.open_settings_window).pack(side=LEFT, padx=5)
         Button(top, text="Cerrar boleta pendiente", command=self.commit_pending_receipt).pack(side=LEFT, padx=5)
         Button(top, text="Guardar última boleta", command=self.save_last_receipt).pack(side=LEFT, padx=5)
         Button(top, text="Guardar historial", command=self.save_receipt_history).pack(side=LEFT, padx=5)
@@ -50,6 +54,59 @@ class AppUI:
         Label(self.root, text="Boletas generadas:").pack(anchor="w", padx=10)
         self.receipt_text = Text(self.root)
         self.receipt_text.pack(fill=BOTH, expand=True, padx=10, pady=5)
+
+    def open_settings_window(self) -> None:
+        """Ventana de ajustes para seleccionar micrófono de entrada."""
+        settings = Toplevel(self.root)
+        settings.title("Ajustes")
+        settings.geometry("560x220")
+
+        Label(settings, text="Selecciona el micrófono para captura de voz:").pack(anchor="w", padx=12, pady=(12, 4))
+
+        try:
+            devices = SpeechRecognizer.list_input_devices()
+        except Exception as exc:
+            messagebox.showerror("Error de audio", f"No se pudieron listar micrófonos: {exc}")
+            settings.destroy()
+            return
+
+        if not devices:
+            Label(settings, text="No se detectaron micrófonos de entrada.").pack(anchor="w", padx=12, pady=10)
+            return
+
+        device_map = {
+            f"[{device['index']}] {device['name']} (canales: {device['channels']}, rate: {device['default_rate']})": device["index"]
+            for device in devices
+        }
+
+        combo_value = StringVar()
+        combo = ttk.Combobox(settings, textvariable=combo_value, state="readonly", width=75)
+        combo["values"] = list(device_map.keys())
+        combo.pack(fill="x", padx=12, pady=4)
+
+        # Selección por defecto: el primero o el actualmente seleccionado
+        default_key = combo["values"][0]
+        if self.selected_input_device_index is not None:
+            for key, index in device_map.items():
+                if index == self.selected_input_device_index:
+                    default_key = key
+                    break
+        combo_value.set(default_key)
+
+        status_label = Label(settings, text="")
+        status_label.pack(anchor="w", padx=12, pady=(8, 6))
+
+        def save_settings() -> None:
+            selected = combo_value.get().strip()
+            if selected not in device_map:
+                messagebox.showwarning("Selección inválida", "Debes seleccionar un micrófono válido.")
+                return
+
+            self.selected_input_device_index = device_map[selected]
+            status_label.config(text=f"Micrófono seleccionado: {selected}")
+            messagebox.showinfo("Ajustes guardados", "Micrófono guardado correctamente.")
+
+        Button(settings, text="Guardar micrófono", command=save_settings).pack(anchor="w", padx=12, pady=6)
 
     def toggle_listening(self) -> None:
         if self.is_listening:
@@ -71,6 +128,10 @@ class AppUI:
             return
 
         try:
+            self.recognizer = SpeechRecognizer(
+                model_path=self.model_path,
+                input_device_index=self.selected_input_device_index,
+            )
             self.recognizer = SpeechRecognizer(model_path=self.model_path)
             self.recognizer.start_listening(on_partial=self.on_partial_text, on_final=self.on_final_text)
             self.is_listening = True
