@@ -14,6 +14,11 @@ from vosk import KaldiRecognizer, Model
 class SpeechRecognizer:
     """Administra captura de audio y transcripción continua."""
 
+    def __init__(self, model_path: str, sample_rate: int = 16000, input_device_index: Optional[int] = None) -> None:
+        self.model = Model(model_path)
+        self.recognizer = KaldiRecognizer(self.model, sample_rate)
+        self.sample_rate = sample_rate
+        self.input_device_index = input_device_index
     def __init__(self, model_path: str, sample_rate: int = 16000) -> None:
         self.model = Model(model_path)
         self.recognizer = KaldiRecognizer(self.model, sample_rate)
@@ -24,6 +29,28 @@ class SpeechRecognizer:
         self._audio_queue: queue.Queue[bytes] = queue.Queue()
         self._running = False
         self._thread: Optional[threading.Thread] = None
+
+    @staticmethod
+    def list_input_devices() -> list[dict]:
+        """Lista dispositivos de entrada disponibles en el sistema."""
+        audio = pyaudio.PyAudio()
+        devices: list[dict] = []
+        try:
+            for index in range(audio.get_device_count()):
+                info = audio.get_device_info_by_index(index)
+                if int(info.get("maxInputChannels", 0)) > 0:
+                    devices.append(
+                        {
+                            "index": index,
+                            "name": info.get("name", f"Micrófono {index}"),
+                            "channels": int(info.get("maxInputChannels", 0)),
+                            "default_rate": int(info.get("defaultSampleRate", 16000)),
+                        }
+                    )
+        finally:
+            audio.terminate()
+
+        return devices
 
     def _audio_callback(self, in_data, frame_count, time_info, status):
         self._audio_queue.put(in_data)
@@ -40,6 +67,7 @@ class SpeechRecognizer:
             channels=1,
             rate=self.sample_rate,
             input=True,
+            input_device_index=self.input_device_index,
             frames_per_buffer=8000,
             stream_callback=self._audio_callback,
         )
