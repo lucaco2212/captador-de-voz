@@ -1,3 +1,7 @@
+"""Interfaz Tkinter estilo dashboard oscuro para captura de pedidos por voz.
+
+Nota: archivo reindentado para evitar errores de indentación en entornos Windows.
+"""
 """Interfaz Tkinter estilo dashboard oscuro para captura de pedidos por voz."""
 
 from __future__ import annotations
