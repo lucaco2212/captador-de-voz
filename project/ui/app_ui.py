@@ -203,7 +203,7 @@ class AppUI:
             relief="flat",
             padx=8,
             pady=6,
-        )
+        
 
     def _build_widgets(self) -> None:
         top = Frame(self.root, bg=BG)
