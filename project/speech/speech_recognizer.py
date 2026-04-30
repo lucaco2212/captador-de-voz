@@ -20,6 +20,10 @@ class SpeechRecognizer:
         self.recognizer = KaldiRecognizer(self.model, sample_rate)
         self.sample_rate = sample_rate
         self.input_device_index = input_device_index
+    def __init__(self, model_path: str, sample_rate: int = 16000) -> None:
+        self.model = Model(model_path)
+        self.recognizer = KaldiRecognizer(self.model, sample_rate)
+        self.sample_rate = sample_rate
 
         self._audio_interface: Optional[pyaudio.PyAudio] = None
         self._stream: Optional[pyaudio.Stream] = None
@@ -83,6 +87,7 @@ class SpeechRecognizer:
         return (None, pyaudio.paContinue)
 
     def start_listening(self, on_partial: Callable[[str], None], on_final: Callable[[str], None]) -> None:
+        """Inicia el hilo de escucha y notifica parciales/finales mediante callbacks."""
         if self._running:
             return
 
@@ -122,6 +127,7 @@ class SpeechRecognizer:
         self._thread.start()
 
     def stop_listening(self) -> None:
+        """Detiene la captura y libera recursos de audio."""
         self._running = False
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=1)
